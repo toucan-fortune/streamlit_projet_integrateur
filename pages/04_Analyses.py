@@ -1,5 +1,7 @@
 import streamlit as st
 import base64
+import pymongo
+import pandas as pd
 
 # Dans le requirements.txt,
 # ne pas installer de modules standards à Python
@@ -47,7 +49,8 @@ def ajouter_image_sidebar(image):
 
 ajouter_image_sidebar("img/android-chrome-512x512b.png")
 
-st.sidebar.markdown('Tableau de bord, `version 2`')
-
 ##################################################
 st.title("Analyses")
+
+# ???
+st.write("Todo: Resampling des periodes: s à min à 10min à heure à 6h à 12h à 24h ou jour à semaine à mois..., boites, etc.")
