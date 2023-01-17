@@ -1,4 +1,4 @@
 pandas==1.4.4
 plotly==5.9.0
 pymongo==4.3.3
-streamlit==1.16.0
+streamlit==1.17.0
