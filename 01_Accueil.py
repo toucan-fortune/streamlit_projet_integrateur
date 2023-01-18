@@ -16,7 +16,7 @@ st.set_page_config(page_title="Projet intégrateur",
                    layout="centered",
                    initial_sidebar_state="auto",
                    menu_items={
-                       "About": "Projet intégrateur de l'équipe Toucan Fortuné"}
+                       "About": "Projet intégrateur de l'équipe Toucan Fortuné."}
 )
     
 # Cacher le menu officiel (hamburger)
