@@ -32,6 +32,7 @@ hide_menu_style = """
         """
 #st.markdown(hide_menu_style, unsafe_allow_html=True)
 
+
 # Ajouter au Sidebar
 def ajouter_image_sidebar(image):
     with open(image, "rb") as image:
@@ -50,22 +51,25 @@ def ajouter_image_sidebar(image):
     unsafe_allow_html=True
 )
 
+
 ajouter_image_sidebar("img/android-chrome-512x512b.png")
 
 ##################################################
 # Déterminer les constantes
-COMPTE_NOEUD = 9
-WARNING = "Seul le noeuds 001 est actif."
+BASE = 'toucan'
+COLLECTION = 'format4b'
+NOLIGNES = 288
+#COMPTE_NOEUD = 9
+WARNING = "Seul le noeud 001 est actif."
 
-# Construire la page
-st.title("Démo Asynchrone")
-
+##################################################
 # Établir la connexion à la base de données
 @st.experimental_singleton
 def etablir_connexion():
     # Chercher les données dans le fichier secrets.toml
     URI = f"mongodb+srv://{st.secrets['db_username']}:{st.secrets['db_pw']}@{st.secrets['db_cluster']}.gzo0glz.mongodb.net/?retryWrites=true&writeConcern=majority"
     return pymongo.MongoClient(URI)
+
 
 # Importer les données de la collection
 @st.experimental_memo
@@ -82,6 +86,7 @@ def extraire_documents_dataframe(_client, _base, _collection, _nolignes):
     dataframe = pd.DataFrame(items)
     return dataframe
 
+
 # Préparer le DataFrame
 @st.experimental_memo
 def preparer_dataframe(dataframe):
@@ -96,6 +101,7 @@ def preparer_dataframe(dataframe):
     dataframe_ts['valeur'] = dataframe_ts['valeur'].astype('float16')
     return dataframe_ts
 
+
 # Filtrer le DataFrame
 @st.experimental_memo
 def filtrer_dataframe_metriques(dataframe, noeud, capteur, metrique):
@@ -107,6 +113,7 @@ def filtrer_dataframe_metriques(dataframe, noeud, capteur, metrique):
     dataframe_f = dataframe.loc[filtre_noeud & filtre_capteur & filtre_metrique]
     return dataframe_f
 
+
 # Filtrer le DataFrame
 @st.experimental_memo
 def filtrer_dataframe_series(dataframe, capteur, metrique):
@@ -117,9 +124,10 @@ def filtrer_dataframe_series(dataframe, capteur, metrique):
     dataframe_f = dataframe.loc[filtre_capteur & filtre_metrique]
     return dataframe_f
 
+
 # Sélectionner les 2 dernières observations
 @st.experimental_memo
-def selectionner_obs_metrique(dataframe):
+def selectionner_obs_metriques(dataframe):
     # Trier les observations
     # descending, newest to oldest ou ascending=False
     # ascending, oldest to newest ou ascending=True
@@ -135,6 +143,7 @@ def selectionner_obs_metrique(dataframe):
     valeur_metrique = dataframe_2['valeur'].iloc[0]
     valeur_delta = dataframe_2['valeur_delta'].iloc[0]
     return valeur_metrique, valeur_delta, valeur_datetime
+
 
 # Sélectionner les observations
 @st.experimental_memo
@@ -152,6 +161,7 @@ def selectionner_obser_series(dataframe, nombre):
     dataframe_2.loc[:, 'valeur_pct_delta'] = dataframe_2['valeur'] / dataframe_2['valeur_precedente'] - 1
     return dataframe_2
 
+
 ##################################################
 # Établir la connexion à la base de données
 try:
@@ -162,6 +172,15 @@ except Exception:
     print("Incapable de se connecter au serveur.")
 
 ##################################################
+# Construire la page
+# avec title, header, subheader, markdown, write
+# columns, containerm form
+# warning, info
+# les widgets
+# caption, metric
+
+st.title("Asynchrone")
+
 st.header("Sélection")
 
 st.subheader("Sélectionner les données")
@@ -169,54 +188,52 @@ st.subheader("Sélectionner les données")
 col1, col2, col3 = st.columns(3)
 
 with col1:
-    # Sélectionner la bd et la collection
+    # Sélectionner la bd
     st.radio("Base de données",
-    ('toucan',), key='base')
+             (BASE,), key='base')
 with col2:
+    # Sélectionner la collection
     st.radio("Collection",
-    ('format3',), key='collection')
+             (COLLECTION,), key='collection')
 with col3:
+    # Sélectionner le nombre de documents
     st.radio("Documents",
-    (850,), key='nolignes')
-    
+             (NOLIGNES,), key='nolignes')
+
 # Construire un contenant
 with st.container():
     st.subheader("Sélectionner les noeuds à afficher")
-    
+
     st.warning(WARNING)
-    
-    # st.columns(spec, *, gap="small")
+
     col1, col2, col3 = st.columns(3)
     with col1:
-        st.checkbox('Noeud 001', key='st_noeud001', value=True)
+        # Construire des placeholders
+        p_checkbox = st.empty()
 
-# Construire un onglet de changement de l'étendue
 st.subheader("Sélectionner l'étendue")
 
-st.info(f"De 5 à {st.session_state['nolignes']} périodes chronologiques.")
-st.slider("Sélectionner", 5, st.session_state["nolignes"], 10, 5, key='periode')
+# Construire des placeholders
+p_periode_info = st.empty()
+p_periode_slider = st.empty()
 
-# Construire un onglet de l'intervalle de temps
 st.subheader("Sélectionner l'intervalle de temps")
 
-# Construire un contenant
-with st.container():
-    # Construire des placeholders
-    p_delai_info = st.empty()
-    p_delai_slider = st.empty()
-    
-    # Construire des placeholders
-    p_activer_button = st.empty()
-    p_arreter_button = st.empty()
-    st.caption("... les extractions à intervalles.")
-    delta_temps_caption = st.empty()
+# Construire des placeholders
+p_delai_info = st.empty()
+p_delai_slider = st.empty()
+
+# Construire des placeholders
+p_activer_button = st.empty()
+p_arreter_button = st.empty()
+st.caption("... les extractions à intervalles.")
+delta_temps_caption = st.empty()
 
 st.header("Affichage")
 
-# Utiliser les placeholder
 st.warning(WARNING)
 
-col1, col2 = st.columns(2, gap="small")
+col1, col2 = st.columns(2)
 
 with col1:
     st.subheader("Température")
@@ -224,38 +241,46 @@ with col1:
     # Construire des placeholders
     p_metric_t001 = st.empty()
     p_caption_t001 = st.empty()
-    
+
 with col2:
     st.subheader("Humidité")
+
     # Construire des placeholders
     p_metric_h001 = st.empty()
     p_caption_h001 = st.empty()
-    
-st.subheader("Graphique: température")
-    
+
+st.subheader("Graphiques: température")
+
 p_chart_a = st.empty()
 p_chart_b = st.empty()
 
 ##################################################
+# Utiliser les placeholders
+p_checkbox.checkbox('Noeud 001', key='st_noeud001', value=True)
 
-# Construire les placeholders
+p_periode_info.info(f"De 5 à {st.session_state['nolignes']} périodes chronologiques.")
+p_periode_slider.slider("Sélectionner", 5, st.session_state["nolignes"], 10, 5, key='periode')
+
 p_delai_info.info("Intervalles de 3s à 60s entre chaque extraction de la base de données.")
-p_delai_slider.slider("Sélectionner", 3, 60, 3, 3, key='delai')
+p_delai_slider.slider("Sélectionner", 5, 60, 10, 5, key='delai')
 
 ##################################################
-# Utiliser les placeholders
 # Si objet est True (présent)
 if p_activer_button.button('Activer', key='start'):
-    # Enlever ces objets
-    p_activer_button.empty()
+    # Enlever ces placeholders
+    p_checkbox.empty()
+    p_periode_info.empty()
+    p_periode_slider.empty()
     p_delai_info.empty()
     p_delai_slider.empty()
+    p_activer_button.empty()
+
     # Si objet est True (présent)
     if p_arreter_button.button('Arrêter', key='stop'):
         # Aller à la boucle
         pass
+
     # Boucle infinie
-    # (à moins d'un évènement sur le bouton)
     while True:
         # Calculer le delta entre
         # le temps présent et
@@ -275,22 +300,22 @@ if p_activer_button.button('Activer', key='start'):
             # Préparer le DataFrame
             df_ts = preparer_dataframe(df)
             # Filtrer le DataFrame
-            df_f = filtrer_dataframe_metriques(df_ts, "noeud01", "temperature", "brute")
+            df_f = filtrer_dataframe_metriques(df_ts, "pico01", "temperature", "brute")
             # Activer les placeholders
             p_metric_t001.metric("Noeud 001",
-                                f"{selectionner_obs_metrique(df_f)[0]:.1f}°C",
-                                f"{selectionner_obs_metrique(df_f,)[1]:.1f}°C")
-            p_caption_t001.caption(f"{selectionner_obs_metrique(df_f)[2]: %d %b %Y, %Hh%M:%S}")
+                                f"{selectionner_obs_metriques(df_f)[0]:.1f}°C",
+                                f"{selectionner_obs_metriques(df_f,)[1]:.1f}°C")
+            p_caption_t001.caption(f"{selectionner_obs_metriques(df_f)[2]: %d %b %Y, %Hh%M:%S}")
             # Filtrer le DataFrame
-            df_f = filtrer_dataframe_metriques(df_ts, "noeud01", "humidité", "brute")
+            df_f = filtrer_dataframe_metriques(df_ts, "pico01", "humidite", "brute")
             # Activer les placeholders
             p_metric_h001.metric("Noeud 001",
-                                 f"{selectionner_obs_metrique(df_f)[0]:.1f}%",
-                                 f"{selectionner_obs_metrique(df_f,)[1]:.1f}%")
-            p_caption_h001.caption(f"{selectionner_obs_metrique(df_f)[2]: %d %b %Y, %Hh%M:%S}")
+                                 f"{selectionner_obs_metriques(df_f)[0]:.1f}%",
+                                 f"{selectionner_obs_metriques(df_f,)[1]:.1f}%")
+            p_caption_h001.caption(f"{selectionner_obs_metriques(df_f)[2]: %d %b %Y, %Hh%M:%S}")
             # Filtrer pour les prochaines graphiques
             # Refiltrer les noeuds
-            liste_noeud = ['noeud01']
+            liste_noeud = ['pico01']
             df_f = filtrer_dataframe_series(df_ts, "temperature", "brute").loc[df_ts['noeud'].isin(liste_noeud)]
             # Tracer la ligne
             fig = px.line(selectionner_obser_series(df_f,
@@ -317,8 +342,8 @@ if p_activer_button.button('Activer', key='start'):
                                  "valeur_delta": "différence en °C",
                                  "noeud": "Noeud"
                              },
-                         title='Brute, changement (période à période)')
+                         title='Brute, changement, période à période')
             p_chart_b.plotly_chart(fig)
             ##################################################
         # Délai entre intérations
-        time.sleep(1)
+        time.sleep(2.5)

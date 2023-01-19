@@ -25,7 +25,7 @@ hide_menu_style = """
         #MainMenu {visibility: hidden;}
         </style>
         """
-#???
+# ???
 #st.markdown(hide_menu_style, unsafe_allow_html=True)
 
 # Ajouter au Sidebar
@@ -54,7 +54,7 @@ st.title ("Accueil")
 st.header("Description")          
 
 st.markdown(
-    "Il s'agit d'un *pipeline* pour acheminer des données à partir de **noeuds** (capteurs et microcontrôleurs Raspberry Pico) jusqu'à ce **tableau de bord**. Voir les [diagrammes de déploiement](#diagramme-de-d-ploiement) en bas de page."
+    "Il s'agit d'une chaine IoT pour acheminer des données à partir de **noeuds** (capteurs et microcontrôleurs Raspberry Pico) jusqu'à ce **tableau de bord**. Voir les [diagrammes de déploiement](#diagramme-de-d-ploiement) en bas de page."
 )
 
 st.markdown(
@@ -64,26 +64,26 @@ st.markdown(
 st.subheader("Métriques")
 
 st.markdown(
-    "Les données captées les plus à jour."
+    "Les dernière données captées (les plus à jour)."
 )
 
-st.subheader("Séries")
+st.subheader("Séries et Analyses")
 
 st.markdown(
-    "Des séries chronologiques des données captées sur plusieurs périodes de temps."
+    "Des séries chronologiques de données captées sur plusieurs périodes de temps et des analyses (statistiques descriptives)."
 )
 
-st.subheader("Analyses")
+st.subheader("Asynchrone")
 
 st.markdown(
-    "Des analyses (statistiques descriptives) des données captées sur plusieurs périodes de temps."
+    "Les données captées puis affichées de façon asynchrone (avec un délai)."
 )
 
 st.header("Diagramme de déploiement")
 
 with st.expander("En première partie du *pipeline*..."):
     st.markdown(
-        "En première partie du *pipeline*, les **capteurs** peut être n'importe quel composant qui prend des mesures pour alimenter le **tableau de bord**: données environnementales (température, humidité, vitesse du vent, pluviométrie, etc.), quantité de gaz ou de fumée, rayonnement à différentes longueurs d'onde, niveau sonore, distance par sonar ou lidar, ainsi de suite. Un microcontrôleur plus puissant permettrait de réalisé du ML embarqué. Il serait possible, par exemple, de compter des objets avec une caméra, de faire le traitement localement pour n'envoyer que des décomptes (des données simples)."
+        "En première partie de la chaine, les **capteurs** peut être n'importe quel composant qui prend des mesures pour alimenter le **tableau de bord**: données environnementales (température, humidité, vitesse du vent, pluviométrie, etc.), quantité de gaz ou de fumée, rayonnement à différentes longueurs d'onde, niveau sonore, distance par sonar ou lidar, ainsi de suite. Un microcontrôleur plus puissant permettrait de réalisé du ML à la pointe. Il serait possible, par exemple, de compter des objets avec une caméra, de faire le traitement localement pour n'envoyer que des décomptes (des données comme des entiers)."
     )
 
     st.markdown(

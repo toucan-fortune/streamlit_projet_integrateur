@@ -3,7 +3,7 @@ import base64
 import pymongo
 import pandas as pd
 import plotly.express as px
-import datetime
+
 
 # Dans le requirements.txt,
 # ne pas installer de modules standards à Python
@@ -32,6 +32,7 @@ hide_menu_style = """
 # ???
 #st.markdown(hide_menu_style, unsafe_allow_html=True)
 
+
 # Ajouter au Sidebar
 def ajouter_image_sidebar(image):
     with open(image, "rb") as image:
@@ -50,17 +51,18 @@ def ajouter_image_sidebar(image):
     unsafe_allow_html=True
 )
 
+
 ajouter_image_sidebar("img/android-chrome-512x512b.png")
 
 ##################################################
 # Déterminer les constantes
+BASE = 'toucan'
+COLLECTION = 'format4b'
+NOLIGNES = 2592
 COMPTE_NOEUD = 9
 WARNING = "Seul les noeuds 001 à 003 sont actifs."
 
 ##################################################
-# Construire la page
-st.title("Séries")
-
 # Établir la connexion à la base de données
 @st.experimental_singleton
 def etablir_connexion():
@@ -68,20 +70,22 @@ def etablir_connexion():
     URI = f"mongodb+srv://{st.secrets['db_username']}:{st.secrets['db_pw']}@{st.secrets['db_cluster']}.gzo0glz.mongodb.net/?retryWrites=true&writeConcern=majority"
     return pymongo.MongoClient(URI)
 
+
 # Importer les données de la collection
 @st.experimental_memo
 def extraire_documents_dataframe(_client, _base, _collection, _nolignes):
-    # Sélectioner la BASE DE DONNÉES
+    # Sélectioner la bd
     base = _client.get_database(_base)
-    # Sélectionner la COLLECTION
+    # Sélectionner la collection
     collection = base.get_collection(_collection)
-    # Extraire de la COLLECTION et filtrer les documents
+    # Extraire de la collection et filtrer les documents
     # -1 sort descending, newest to oldest
     items = list(collection.find().sort("datetime",
                                         -1).limit(_nolignes))
     # Convertir en DataFrame
     dataframe = pd.DataFrame(items)
     return dataframe
+
 
 # Préparer le DataFrame
 @st.experimental_memo
@@ -97,6 +101,7 @@ def preparer_dataframe(dataframe):
     dataframe_ts['valeur'] = dataframe_ts['valeur'].astype('float16')
     return dataframe_ts
 
+
 # Filtrer le DataFrame
 @st.experimental_memo
 def filtrer_dataframe_series(dataframe, capteur, metrique):
@@ -106,6 +111,7 @@ def filtrer_dataframe_series(dataframe, capteur, metrique):
     # Appliquer les filtre
     dataframe_f = dataframe.loc[filtre_capteur & filtre_metrique]
     return dataframe_f
+
 
 # Sélectionner les observations
 @st.experimental_memo
@@ -123,70 +129,78 @@ def selectionner_obser_series(dataframe, nombre):
     dataframe_2.loc[:, 'valeur_pct_delta'] = dataframe_2['valeur'] / dataframe_2['valeur_precedente'] - 1
     return dataframe_2
 
+
 ##################################################
 # Établir la connexion à la base de données
 try:
     _un_client = etablir_connexion()
-    # Suivant la connexion,
-    # marquer un temps de référence
-    maintenant = datetime.datetime.now()
 except Exception:
     print("Incapable de se connecter au serveur.")
 
 ##################################################
+# Construire la page
+# avec title, header, subheader, markdown, write
+# columns, containerm form
+# warning, info
+# les widgets
+# caption, metric
+
+st.title("Séries")
+
 st.header("Sélection")
 
 col1, col2, col3 = st.columns(3)
 
 with col1:
-    # Sélectionner la bd et la collection
+    # Sélectionner la bd
     st.radio("Base de données",
-    ('toucan',), key='base')
+             (BASE,), key='base')
 with col2:
+    # Sélectionner la collection
     st.radio("Collection",
-    ('format3',), key='collection')
+             (COLLECTION,), key='collection')
 with col3:
+    # Sélectionner le nombre de documents
     st.radio("Documents",
-    (850,), key='nolignes')
+             (NOLIGNES,), key='nolignes')
 
-# Construire un contenant
 with st.container():
     st.subheader("Sélectionner les noeuds à afficher")
-    
+
     st.warning(WARNING)
-    
-    # st.columns(spec, *, gap="small")
+
     col1, col2, col3 = st.columns(3)
     with col1:
         st.checkbox('Noeud 001', key='st_noeud001', value=False)
         st.checkbox('Noeud 002', key='st_noeud002', value=False)
         st.checkbox('Noeud 003', key='st_noeud003', value=False)
-        st.empty()
     with col2:
         st.checkbox('Noeud 004', key='st_noeud004', value=False)
         st.checkbox('Noeud 005', key='st_noeud005', value=False)
-        st.checkbox('Noeud 006', key='st_noeud006', value=False)   
+        st.checkbox('Noeud 006', key='st_noeud006', value=False)
     with col3:
         st.checkbox('Noeud 007', key='st_noeud007', value=False)
         st.checkbox('Noeud 008', key='st_noeud008', value=False)
         st.checkbox('Noeud 009', key='st_noeud009', value=False)
 
+
 # Confirmer les changements d'état
 # du formulaire
 def mettre_jour_groupe():
-    # a
+    # Groupe A
     st.session_state['st_noeud001'] = st.session_state['st_groupe00a']
     st.session_state['st_noeud002'] = st.session_state['st_groupe00a']
     st.session_state['st_noeud003'] = st.session_state['st_groupe00a']
-    # b
+    # Groupe B
     st.session_state['st_noeud004'] = st.session_state['st_groupe00b']
     st.session_state['st_noeud005'] = st.session_state['st_groupe00b']
     st.session_state['st_noeud006'] = st.session_state['st_groupe00b']
-    # c
+    # Groupe C
     st.session_state['st_noeud007'] = st.session_state['st_groupe00c']
     st.session_state['st_noeud008'] = st.session_state['st_groupe00c']
     st.session_state['st_noeud009'] = st.session_state['st_groupe00c']
-    
+
+
 # Construire un formulaire de changement des états
 with st.form(key="form", clear_on_submit=True):
     col1, col2, col3 = st.columns(3)
@@ -196,13 +210,13 @@ with st.form(key="form", clear_on_submit=True):
         st.checkbox('Groupe 00B', key='st_groupe00b', value=False)
     with col3:
         st.checkbox('Groupe 00C', key='st_groupe00c', value=False)
-    # Invoquer la fonction 
+    # Invoquer la fonction
     bouton_soumettre = st.form_submit_button('Soumettre', on_click=mettre_jour_groupe)
 
-# Construire un onglet de changement de l'étendue
 st.subheader("Sélectionner l'étendue")
 
 st.info(f"De 5 à {st.session_state['nolignes']} périodes chronologiques.")
+
 st.slider("Sélectionner", 5, st.session_state["nolignes"], 10, 5, key='periode')
 
 ##################################################
@@ -219,7 +233,6 @@ df_ts = preparer_dataframe(df).sort_values(by=["noeud", "datetime"])
 ##################################################
 st.header("Affichage")
 
-# Construire les graphiques
 st.warning(WARNING)
 
 st.subheader("Tableau interactif de 10 observations")
@@ -231,16 +244,16 @@ st.dataframe(df_ts.head(10))
 # Vérifier le nombre d'observations
 st.write(f"Nombre total d'observations: {df_ts.shape[0]}")
 
-st.subheader("Graphique: température")
+st.subheader("Graphiques: température")
 
 # Filtrer pour les prochaines graphiques
 liste_noeud = []
 if st.session_state['st_noeud001']:
-    liste_noeud.append('noeud01')
+    liste_noeud.append('pico01')
 if st.session_state['st_noeud002']:
-    liste_noeud.append('noeud02')
+    liste_noeud.append('pico02')
 if st.session_state['st_noeud003']:
-    liste_noeud.append('noeud03')
+    liste_noeud.append('pico03')
 # ...
 
 # Filtrer pour les prochaines graphiques
@@ -273,7 +286,7 @@ fig = px.bar(selectionner_obser_series(df_f,
                      "valeur_delta": "différence en °C",
                      "noeud": "Noeud"
                  },
-             title='Brute, changement (période à période)')
+             title='Brute, changement, période à période')
 st.plotly_chart(fig)
 
 # Tracer les barres
@@ -287,14 +300,44 @@ fig = px.bar(selectionner_obser_series(df_f,
                      "valeur_pct_delta": "% différence en °C",
                      "noeud": "Noeud"
                  },
-             title='Brute, % changement (période à période)')
+             title='Brute, % changement, période à période')
 st.plotly_chart(fig)
 
-st.subheader("Graphique: humidité")
+# Tracer les violons
+fig = px.violin(selectionner_obser_series(df_f,
+                                          st.session_state['periode']),
+             x="capteur",
+             y="valeur",
+             labels={
+                     "capteur": "Capteur",
+                     "valeur": "°C"
+                 },
+             box=True,
+             points="all",
+             title='Distribution, brute')
+st.plotly_chart(fig)
+
+# Tracer les violons
+fig = px.violin(selectionner_obser_series(df_f,
+                                          st.session_state['periode']),
+             x="capteur",
+             y="valeur",
+             color="noeud",
+             labels={
+                     "capteur": "Capteur",
+                     "valeur": "°C",
+                     "noeud": "Noeud"
+                 },
+             box=True,
+             points="all",
+             title='Distribution par noeud, brute')
+st.plotly_chart(fig)
+
+st.subheader("Graphiques: humidité")
 
 # Filtrer pour les prochaines graphiques
 # Refiltrer les noeuds
-df_f = filtrer_dataframe_series(df_ts, "humidité", "brute").loc[df_ts['noeud'].isin(liste_noeud)]
+df_f = filtrer_dataframe_series(df_ts, "humidite", "brute").loc[df_ts['noeud'].isin(liste_noeud)]
 
 # Tracer la ligne
 fig = px.line(selectionner_obser_series(df_f,
@@ -323,48 +366,12 @@ fig = px.bar(selectionner_obser_series(df_f,
                      "valeur_delta": "différence en %",
                      "noeud": "Noeud"
                  },
-             title='Brute, changement (période à période)')
+             title='Brute, changement, période à période')
 st.plotly_chart(fig)
-
-st.subheader("Graphique: analyse de la température")
 
 # Filtrer pour les prochaines graphiques
-df_f = filtrer_dataframe_series(df_ts, "temperature", "brute")
-
-# Tracer les violons
-fig = px.violin(selectionner_obser_series(df_f,
-                                          st.session_state['periode']),
-             x="capteur",
-             y="valeur",
-             labels={
-                     "capteur": "Capteur",
-                     "valeur": "°C"
-                 },
-             box=True,
-             points="all",
-             title='Distribution de la température brute')
-st.plotly_chart(fig)
-
-# Tracer les violons
-fig = px.violin(selectionner_obser_series(df_f,
-                                          st.session_state['periode']),
-             x="capteur",
-             y="valeur",
-             color="noeud",
-             labels={
-                     "capteur": "Capteur",
-                     "valeur": "°C",
-                     "noeud": "Noeud"
-                 },
-             box=True,
-             points="all",
-             title='Distribution de la température brute par noeud')
-st.plotly_chart(fig)
-
-st.subheader("Graphique: analyse de l'humidité")
-
-# Filtrer pour les prochaines graphiques
-df_f = filtrer_dataframe_series(df_ts, "humidité", "brute")
+# Refiltrer les noeuds
+df_f = filtrer_dataframe_series(df_ts, "humidite", "brute").loc[df_ts['noeud'].isin(liste_noeud)]
 
 # Tracer les violons
 fig = px.violin(selectionner_obser_series(df_f,
@@ -377,7 +384,7 @@ fig = px.violin(selectionner_obser_series(df_f,
                  },
              box=True,
              points="all",
-             title='Distribution de l\'humidité brute')
+             title='Distribution, brute')
 st.plotly_chart(fig)
 
 # Tracer les violons
@@ -393,5 +400,5 @@ fig = px.violin(selectionner_obser_series(df_f,
                  },
              box=True,
              points="all",
-             title='Distribution de l\'humidité brute par noeud')
+             title='Distribution, par noeud, brute')
 st.plotly_chart(fig)

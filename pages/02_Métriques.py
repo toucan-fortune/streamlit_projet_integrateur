@@ -30,6 +30,7 @@ hide_menu_style = """
 # ???
 #st.markdown(hide_menu_style, unsafe_allow_html=True)
 
+
 # Ajouter au Sidebar
 def ajouter_image_sidebar(image):
     with open(image, "rb") as image:
@@ -48,20 +49,19 @@ def ajouter_image_sidebar(image):
     unsafe_allow_html=True
 )
 
+
 ajouter_image_sidebar("img/android-chrome-512x512b.png")
 
 ##################################################
 # Déterminer les constantes
+BASE = 'toucan'
+# format3b=864, format4b=2592
+COLLECTION = 'format4b'
+NOLIGNES = 2592
 COMPTE_NOEUD = 9
-WARNING = "Seul les noeuds 001 à 003 sont actifs. Les autres valeurs sont calquées sur les noeuds actifs."
+WARNING = "Seul les noeuds 001 à 003 sont actifs. Les autres noeuds sont calquées sur les noeuds actifs."
 
 ##################################################
-# Construire la page
-st.title("Métriques")
-
-# ???Todo
-# changer le schémas page Accueil
-
 # Établir la connexion à la base de données
 @st.experimental_singleton
 def etablir_connexion():
@@ -69,20 +69,22 @@ def etablir_connexion():
     URI = f"mongodb+srv://{st.secrets['db_username']}:{st.secrets['db_pw']}@{st.secrets['db_cluster']}.gzo0glz.mongodb.net/?retryWrites=true&writeConcern=majority"
     return pymongo.MongoClient(URI)
 
+
 # Importer les données de la collection
 @st.experimental_memo
 def extraire_documents_dataframe(_client, _base, _collection, _nolignes):
-    # Sélectioner la BASE DE DONNÉES
+    # Sélectioner la bd
     base = _client.get_database(_base)
-    # Sélectionner la COLLECTION
+    # Sélectionner la collection
     collection = base.get_collection(_collection)
-    # Extraire de la COLLECTION et filtrer les documents
+    # Extraire de la collection et filtrer les documents
     # -1 sort descending, newest to oldest
     items = list(collection.find().sort("datetime",
                                         -1).limit(_nolignes))
     # Convertir en DataFrame
     dataframe = pd.DataFrame(items)
     return dataframe
+
 
 # Préparer le DataFrame
 @st.experimental_memo
@@ -98,6 +100,7 @@ def preparer_dataframe(dataframe):
     dataframe_ts['valeur'] = dataframe_ts['valeur'].astype('float16')
     return dataframe_ts
 
+
 # Filtrer le DataFrame
 @st.experimental_memo
 def filtrer_dataframe_metriques(dataframe, noeud, capteur, metrique):
@@ -109,9 +112,10 @@ def filtrer_dataframe_metriques(dataframe, noeud, capteur, metrique):
     dataframe_f = dataframe.loc[filtre_noeud & filtre_capteur & filtre_metrique]
     return dataframe_f
 
+
 # Sélectionner les 2 dernières observations
 @st.experimental_memo
-def selectionner_obs_metrique(dataframe):
+def selectionner_obs_metriques(dataframe):
     # Trier les observations
     # descending, newest to oldest ou ascending=False
     # ascending, oldest to newest ou ascending=True
@@ -128,6 +132,7 @@ def selectionner_obs_metrique(dataframe):
     valeur_delta = dataframe_2['valeur_delta'].iloc[0]
     return valeur_metrique, valeur_delta, valeur_datetime
 
+
 ##################################################
 # Établir la connexion à la base de données
 try:
@@ -136,6 +141,15 @@ except Exception:
     print("Incapable de se connecter au serveur.")
 
 ##################################################
+# Construire la page
+# avec title, header, subheader, markdown, write
+# columns, containerm form
+# warning, info
+# les widgets
+# caption, metric
+
+st.title("Métriques")
+
 st.header("Sélection")
 
 st.subheader("Sélectionner les données")
@@ -143,53 +157,54 @@ st.subheader("Sélectionner les données")
 col1, col2, col3 = st.columns(3)
 
 with col1:
-    # Sélectionner la bd et la collection
+    # Sélectionner la bd
     st.radio("Base de données",
-    ('toucan',), key='base')
+             (BASE,), key='base')
 with col2:
+    # Sélectionner la collection
     st.radio("Collection",
-    ('format3',), key='collection')
+             (COLLECTION,), key='collection')
 with col3:
+    # Sélectionner le nombre de documents
     st.radio("Documents",
-    (850,), key='nolignes')
+             (NOLIGNES,), key='nolignes')
 
-# Construire un contenant
 with st.container():
     st.subheader("Sélectionner les noeuds à afficher")
-    
+
     st.warning(WARNING)
-    
-    # st.columns(spec, *, gap="small")
+
     col1, col2, col3 = st.columns(3)
     with col1:
         st.checkbox('Noeud 001', key='st_noeud001', value=False)
         st.checkbox('Noeud 002', key='st_noeud002', value=False)
         st.checkbox('Noeud 003', key='st_noeud003', value=False)
-        st.empty()
     with col2:
         st.checkbox('Noeud 004', key='st_noeud004', value=False)
         st.checkbox('Noeud 005', key='st_noeud005', value=False)
-        st.checkbox('Noeud 006', key='st_noeud006', value=False)   
+        st.checkbox('Noeud 006', key='st_noeud006', value=False)
     with col3:
         st.checkbox('Noeud 007', key='st_noeud007', value=False)
         st.checkbox('Noeud 008', key='st_noeud008', value=False)
         st.checkbox('Noeud 009', key='st_noeud009', value=False)
 
+
 # Confirmer les changements d'état
 # du formulaire
 def mettre_jour_groupe():
-    # a
+    # Groupe A
     st.session_state['st_noeud001'] = st.session_state['st_groupe00a']
     st.session_state['st_noeud002'] = st.session_state['st_groupe00a']
     st.session_state['st_noeud003'] = st.session_state['st_groupe00a']
-    # b
+    # Groupe B
     st.session_state['st_noeud004'] = st.session_state['st_groupe00b']
     st.session_state['st_noeud005'] = st.session_state['st_groupe00b']
     st.session_state['st_noeud006'] = st.session_state['st_groupe00b']
-    # c
+    # Groupe C
     st.session_state['st_noeud007'] = st.session_state['st_groupe00c']
     st.session_state['st_noeud008'] = st.session_state['st_groupe00c']
     st.session_state['st_noeud009'] = st.session_state['st_groupe00c']
+
 
 # Construire un formulaire de changement des états
 with st.form(key="form", clear_on_submit=True):
@@ -200,7 +215,7 @@ with st.form(key="form", clear_on_submit=True):
         st.checkbox('Groupe 00B', key='st_groupe00b', value=False)
     with col3:
         st.checkbox('Groupe 00C', key='st_groupe00c', value=False)
-    # Invoquer la fonction 
+    # Invoquer la fonction
     bouton_soumettre = st.form_submit_button('Soumettre', on_click=mettre_jour_groupe)
 
 ##################################################
@@ -209,129 +224,129 @@ df = extraire_documents_dataframe(_un_client,
                                   st.session_state["base"],
                                   st.session_state["collection"],
                                   st.session_state["nolignes"])
+
 # Préparer le DataFrame
 df_ts = preparer_dataframe(df)
 
 ##################################################
 st.header("Affichage")
 
-# Construire les métriques
 st.warning(WARNING)
 
-col1, col2 = st.columns(2, gap="small")
+col1, col2 = st.columns(2)
 
 with col1:
     st.subheader("Température")
     if st.session_state['st_noeud001']:
         # Filtrer le DataFrame
-        df_f = filtrer_dataframe_metriques(df_ts, "noeud01", "temperature", "brute")
+        df_f = filtrer_dataframe_metriques(df_ts, noeud="pico01", capteur="temperature", metrique="brute")
         # Sélectionner les 2 dernières observations
         st.metric("Noeud 001",
-                  f"{selectionner_obs_metrique(df_f)[0]:.1f}°C",
-                  f"{selectionner_obs_metrique(df_f,)[1]:.1f}°C")
-        st.caption(f"{selectionner_obs_metrique(df_f)[2]: %d %b %Y, %Hh%M:%S}")
+                  f"{selectionner_obs_metriques(df_f)[0]:.1f}°C",
+                  f"{selectionner_obs_metriques(df_f,)[1]:.1f}°C")
+        st.caption(f"{selectionner_obs_metriques(df_f)[2]: %d %b %Y, %Hh%M:%S}")
     if st.session_state['st_noeud002']:
-        df_f = filtrer_dataframe_metriques(df_ts, "noeud02", "temperature", "brute")
+        df_f = filtrer_dataframe_metriques(df_ts, "pico02", "temperature", "brute")
         st.metric("Noeud 002",
-                  f"{selectionner_obs_metrique(df_f)[0]:.1f}°C",
-                  f"{selectionner_obs_metrique(df_f)[1]:.1f}°C")
-        st.caption(f"{selectionner_obs_metrique(df_f)[2]: %d %b %Y, %Hh%M:%S}")
+                  f"{selectionner_obs_metriques(df_f)[0]:.1f}°C",
+                  f"{selectionner_obs_metriques(df_f)[1]:.1f}°C")
+        st.caption(f"{selectionner_obs_metriques(df_f)[2]: %d %b %Y, %Hh%M:%S}")
     if st.session_state['st_noeud003']:
-        df_f = filtrer_dataframe_metriques(df_ts, "noeud03", "temperature", "brute")
+        df_f = filtrer_dataframe_metriques(df_ts, "pico03", "temperature", "brute")
         st.metric("Noeud 003",
-                  f"{selectionner_obs_metrique(df_f)[0]:.1f}°C",
-                  f"{selectionner_obs_metrique(df_f)[1]:.1f}°C")
-        st.caption(f"{selectionner_obs_metrique(df_f)[2]: %d %b %Y, %Hh%M:%S}")
+                  f"{selectionner_obs_metriques(df_f)[0]:.1f}°C",
+                  f"{selectionner_obs_metriques(df_f)[1]:.1f}°C")
+        st.caption(f"{selectionner_obs_metriques(df_f)[2]: %d %b %Y, %Hh%M:%S}")
     if st.session_state['st_noeud004']:
-        df_f = filtrer_dataframe_metriques(df_ts, "noeud01", "temperature", "brute")
+        df_f = filtrer_dataframe_metriques(df_ts, "pico01", "temperature", "brute")
         st.metric("Noeud 004",
-                  f"{selectionner_obs_metrique(df_f)[0]:.1f}°C",
-                  f"{selectionner_obs_metrique(df_f)[1]:.1f}°C")
-        st.caption(f"{selectionner_obs_metrique(df_f)[2]: %d %b %Y, %Hh%M:%S}")
+                  f"{selectionner_obs_metriques(df_f)[0]:.1f}°C",
+                  f"{selectionner_obs_metriques(df_f)[1]:.1f}°C")
+        st.caption(f"{selectionner_obs_metriques(df_f)[2]: %d %b %Y, %Hh%M:%S}")
     if st.session_state['st_noeud005']:
-        df_f = filtrer_dataframe_metriques(df_ts, "noeud02", "temperature", "brute")
+        df_f = filtrer_dataframe_metriques(df_ts, "pico02", "temperature", "brute")
         st.metric("Noeud 005",
-                  f"{selectionner_obs_metrique(df_f)[0]:.1f}°C",
-                  f"{selectionner_obs_metrique(df_f)[1]:.1f}°C")
-        st.caption(f"{selectionner_obs_metrique(df_f)[2]: %d %b %Y, %Hh%M:%S}")
+                  f"{selectionner_obs_metriques(df_f)[0]:.1f}°C",
+                  f"{selectionner_obs_metriques(df_f)[1]:.1f}°C")
+        st.caption(f"{selectionner_obs_metriques(df_f)[2]: %d %b %Y, %Hh%M:%S}")
     if st.session_state['st_noeud006']:
-        df_f = filtrer_dataframe_metriques(df_ts, "noeud03", "temperature", "brute")
+        df_f = filtrer_dataframe_metriques(df_ts, "pico03", "temperature", "brute")
         st.metric("Noeud 006",
-                  f"{selectionner_obs_metrique(df_f)[0]:.1f}°C",
-                  f"{selectionner_obs_metrique(df_f)[1]:.1f}°C")
-        st.caption(f"{selectionner_obs_metrique(df_f)[2]: %d %b %Y, %Hh%M:%S}")
+                  f"{selectionner_obs_metriques(df_f)[0]:.1f}°C",
+                  f"{selectionner_obs_metriques(df_f)[1]:.1f}°C")
+        st.caption(f"{selectionner_obs_metriques(df_f)[2]: %d %b %Y, %Hh%M:%S}")
     if st.session_state['st_noeud007']:
-        df_f = filtrer_dataframe_metriques(df_ts, "noeud01", "temperature", "brute")
+        df_f = filtrer_dataframe_metriques(df_ts, "pico01", "temperature", "brute")
         st.metric("Noeud 007",
-                  f"{selectionner_obs_metrique(df_f)[0]:.1f}°C",
-                  f"{selectionner_obs_metrique(df_f)[1]:.1f}°C")
-        st.caption(f"{selectionner_obs_metrique(df_f)[2]: %d %b %Y, %Hh%M:%S}")
+                  f"{selectionner_obs_metriques(df_f)[0]:.1f}°C",
+                  f"{selectionner_obs_metriques(df_f)[1]:.1f}°C")
+        st.caption(f"{selectionner_obs_metriques(df_f)[2]: %d %b %Y, %Hh%M:%S}")
     if st.session_state['st_noeud008']:
-        df_f = filtrer_dataframe_metriques(df_ts, "noeud02", "temperature", "brute")
+        df_f = filtrer_dataframe_metriques(df_ts, "pico02", "temperature", "brute")
         st.metric("Noeud 008",
-                  f"{selectionner_obs_metrique(df_f)[0]:.1f}°C",
-                  f"{selectionner_obs_metrique(df_f)[1]:.1f}°C")
-        st.caption(f"{selectionner_obs_metrique(df_f)[2]: %d %b %Y, %Hh%M:%S}")
+                  f"{selectionner_obs_metriques(df_f)[0]:.1f}°C",
+                  f"{selectionner_obs_metriques(df_f)[1]:.1f}°C")
+        st.caption(f"{selectionner_obs_metriques(df_f)[2]: %d %b %Y, %Hh%M:%S}")
     if st.session_state['st_noeud009']:
-        df_f = filtrer_dataframe_metriques(df_ts, "noeud03", "temperature", "brute")
+        df_f = filtrer_dataframe_metriques(df_ts, "pico03", "temperature", "brute")
         st.metric("Noeud 001",
-                  f"{selectionner_obs_metrique(df_f)[0]:.1f}°C",
-                  f"{selectionner_obs_metrique(df_f)[1]:.1f}°C")
-        st.caption(f"{selectionner_obs_metrique(df_f)[2]: %d %b %Y, %Hh%M:%S}")
+                  f"{selectionner_obs_metriques(df_f)[0]:.1f}°C",
+                  f"{selectionner_obs_metriques(df_f)[1]:.1f}°C")
+        st.caption(f"{selectionner_obs_metriques(df_f)[2]: %d %b %Y, %Hh%M:%S}")
 
 with col2:
-    st.subheader("Humidité")
+    st.subheader("humidite")
     if st.session_state['st_noeud001']:
-        df_f = filtrer_dataframe_metriques(df_ts, "noeud01", "humidité", "brute")
+        df_f = filtrer_dataframe_metriques(df_ts, "pico01", "humidite", "brute")
         st.metric("Noeud 001",
-                  f"{selectionner_obs_metrique(df_f)[0]:.1f}%",
-                  f"{selectionner_obs_metrique(df_f)[1]:.1f}%")
-        st.caption(f"{selectionner_obs_metrique(df_f)[2]: %d %b %Y, %Hh%M:%S}")
+                  f"{selectionner_obs_metriques(df_f)[0]:.1f}%",
+                  f"{selectionner_obs_metriques(df_f)[1]:.1f}%")
+        st.caption(f"{selectionner_obs_metriques(df_f)[2]: %d %b %Y, %Hh%M:%S}")
     if st.session_state['st_noeud002']:
-        df_f = filtrer_dataframe_metriques(df_ts, "noeud02", "humidité", "brute")
+        df_f = filtrer_dataframe_metriques(df_ts, "pico02", "humidite", "brute")
         st.metric("Noeud 001",
-                  f"{selectionner_obs_metrique(df_f)[0]:.1f}%",
-                  f"{selectionner_obs_metrique(df_f)[1]:.1f}%")
-        st.caption(f"{selectionner_obs_metrique(df_f)[2]: %d %b %Y, %Hh%M:%S}")
+                  f"{selectionner_obs_metriques(df_f)[0]:.1f}%",
+                  f"{selectionner_obs_metriques(df_f)[1]:.1f}%")
+        st.caption(f"{selectionner_obs_metriques(df_f)[2]: %d %b %Y, %Hh%M:%S}")
     if st.session_state['st_noeud003']:
-        df_f = filtrer_dataframe_metriques(df_ts, "noeud03", "humidité", "brute")
+        df_f = filtrer_dataframe_metriques(df_ts, "pico03", "humidite", "brute")
         st.metric("Noeud 001",
-                  f"{selectionner_obs_metrique(df_f)[0]:.1f}%",
-                  f"{selectionner_obs_metrique(df_f)[1]:.1f}%")
-        st.caption(f"{selectionner_obs_metrique(df_f)[2]: %d %b %Y, %Hh%M:%S}")
+                  f"{selectionner_obs_metriques(df_f)[0]:.1f}%",
+                  f"{selectionner_obs_metriques(df_f)[1]:.1f}%")
+        st.caption(f"{selectionner_obs_metriques(df_f)[2]: %d %b %Y, %Hh%M:%S}")
     if st.session_state['st_noeud004']:
-        df_f = filtrer_dataframe_metriques(df_ts, "noeud01", "humidité", "brute")
+        df_f = filtrer_dataframe_metriques(df_ts, "pico01", "humidite", "brute")
         st.metric("Noeud 001",
-                  f"{selectionner_obs_metrique(df_f)[0]:.1f}%",
-                  f"{selectionner_obs_metrique(df_f)[1]:.1f}%")
-        st.caption(f"{selectionner_obs_metrique(df_f)[2]: %d %b %Y, %Hh%M:%S}")
+                  f"{selectionner_obs_metriques(df_f)[0]:.1f}%",
+                  f"{selectionner_obs_metriques(df_f)[1]:.1f}%")
+        st.caption(f"{selectionner_obs_metriques(df_f)[2]: %d %b %Y, %Hh%M:%S}")
     if st.session_state['st_noeud005']:
-        df_f = filtrer_dataframe_metriques(df_ts, "noeud02", "humidité", "brute")
+        df_f = filtrer_dataframe_metriques(df_ts, "pico02", "humidite", "brute")
         st.metric("Noeud 001",
-                  f"{selectionner_obs_metrique(df_f)[0]:.1f}%",
-                  f"{selectionner_obs_metrique(df_f)[1]:.1f}%")
-        st.caption(f"{selectionner_obs_metrique(df_f)[2]: %d %b %Y, %Hh%M:%S}")
+                  f"{selectionner_obs_metriques(df_f)[0]:.1f}%",
+                  f"{selectionner_obs_metriques(df_f)[1]:.1f}%")
+        st.caption(f"{selectionner_obs_metriques(df_f)[2]: %d %b %Y, %Hh%M:%S}")
     if st.session_state['st_noeud006']:
-        df_f = filtrer_dataframe_metriques(df_ts, "noeud03", "humidité", "brute")
+        df_f = filtrer_dataframe_metriques(df_ts, "pico03", "humidite", "brute")
         st.metric("Noeud 001",
-                  f"{selectionner_obs_metrique(df_f)[0]:.1f}%",
-                  f"{selectionner_obs_metrique(df_f)[1]:.1f}%")
-        st.caption(f"{selectionner_obs_metrique(df_f)[2]: %d %b %Y, %Hh%M:%S}")
+                  f"{selectionner_obs_metriques(df_f)[0]:.1f}%",
+                  f"{selectionner_obs_metriques(df_f)[1]:.1f}%")
+        st.caption(f"{selectionner_obs_metriques(df_f)[2]: %d %b %Y, %Hh%M:%S}")
     if st.session_state['st_noeud007']:
-        df_f = filtrer_dataframe_metriques(df_ts, "noeud01", "humidité", "brute")
+        df_f = filtrer_dataframe_metriques(df_ts, "pico01", "humidite", "brute")
         st.metric("Noeud 001",
-                  f"{selectionner_obs_metrique(df_f)[0]:.1f}%",
-                  f"{selectionner_obs_metrique(df_f)[1]:.1f}%")
-        st.caption(f"{selectionner_obs_metrique(df_f)[2]: %d %b %Y, %Hh%M:%S}")
+                  f"{selectionner_obs_metriques(df_f)[0]:.1f}%",
+                  f"{selectionner_obs_metriques(df_f)[1]:.1f}%")
+        st.caption(f"{selectionner_obs_metriques(df_f)[2]: %d %b %Y, %Hh%M:%S}")
     if st.session_state['st_noeud008']:
-        df_f = filtrer_dataframe_metriques(df_ts, "noeud02", "humidité", "brute")
+        df_f = filtrer_dataframe_metriques(df_ts, "pico02", "humidite", "brute")
         st.metric("Noeud 001",
-                  f"{selectionner_obs_metrique(df_f)[0]:.1f}%",
-                  f"{selectionner_obs_metrique(df_f)[1]:.1f}%")
-        st.caption(f"{selectionner_obs_metrique(df_f)[2]: %d %b %Y, %Hh%M:%S}")
+                  f"{selectionner_obs_metriques(df_f)[0]:.1f}%",
+                  f"{selectionner_obs_metriques(df_f)[1]:.1f}%")
+        st.caption(f"{selectionner_obs_metriques(df_f)[2]: %d %b %Y, %Hh%M:%S}")
     if st.session_state['st_noeud009']:
-        df_f = filtrer_dataframe_metriques(df_ts, "noeud03", "humidité", "brute")
+        df_f = filtrer_dataframe_metriques(df_ts, "pico03", "humidite", "brute")
         st.metric("Noeud 001",
-                  f"{selectionner_obs_metrique(df_f)[0]:.1f}%",
-                  f"{selectionner_obs_metrique(df_f)[1]:.1f}%")
-        st.caption(f"{selectionner_obs_metrique(df_f)[2]: %d %b %Y, %Hh%M:%S}")
+                  f"{selectionner_obs_metriques(df_f)[0]:.1f}%",
+                  f"{selectionner_obs_metriques(df_f)[1]:.1f}%")
+        st.caption(f"{selectionner_obs_metriques(df_f)[2]: %d %b %Y, %Hh%M:%S}")
