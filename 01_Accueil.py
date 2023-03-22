@@ -5,7 +5,7 @@ import base64
 # ne pas installer de modules standards à Python
 
 # Exécuter localement
-# streamlit run index.py
+# streamlit run 01_Accueil.py
 
 ##################################################
 # Configurer la page

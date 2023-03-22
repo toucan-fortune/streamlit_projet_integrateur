@@ -6,8 +6,7 @@ import pandas as pd
 # Dans le requirements.txt,
 # ne pas installer de modules standards à Python
 
-# Exécuter localement
-# streamlit run index.py
+
 
 ##################################################
 # Configurer la page
@@ -15,7 +14,7 @@ import pandas as pd
 # auto or expanded
 st.set_page_config(page_title="Projet intégrateur",
                    page_icon="img/favicon.ico",
-                   layout="centered",
+                   layout="wide",
                    initial_sidebar_state="auto",
                    menu_items={
                        "About": "Projet intégrateur de l'équipe Toucan Fortuné."}
@@ -27,7 +26,7 @@ hide_menu_style = """
         #MainMenu {visibility: hidden;}
         </style>
         """
-# ???
+# !!!
 #st.markdown(hide_menu_style, unsafe_allow_html=True)
 
 
@@ -54,24 +53,30 @@ ajouter_image_sidebar("img/android-chrome-512x512b.png")
 
 ##################################################
 # Déterminer les constantes
-BASE = 'toucan'
-# format3b=864, format4b=2592
-COLLECTION = 'format4b'
-NOLIGNES = 2592
+BASE = ('toucan',)
+# !!!
+COLLECTION = ('format10', 'format11', 'format12', 'format13')
+DESCRIPTION = """
+**format10**: rien - 
+**format11**: simulation de pico01 au 15min - 
+**format12**: simulation de pico01 à pico09 au 60min - 
+**format13**: capteur pico01
+"""
+NOLIGNES = (50, 100, 200, 400, 800, 1600)
 COMPTE_NOEUD = 9
-WARNING = "Seul les noeuds 001 à 003 sont actifs. Les autres noeuds sont calquées sur les noeuds actifs."
+#WARNING = "Seul le noeud 001 est actif. Les autres noeuds sont calquées sur le noeud actif."
+#WARNING = "Seul les noeuds 001 à 003 sont actifs. Les autres noeuds sont calquées sur les noeuds actifs."
+WARNING = "Seuls certains noeuds peuvent être actifs."
 
 ##################################################
 # Établir la connexion à la base de données
-@st.experimental_singleton
+@st.cache_resource(ttl=3600)
 def etablir_connexion():
     # Chercher les données dans le fichier secrets.toml
     URI = f"mongodb+srv://{st.secrets['db_username']}:{st.secrets['db_pw']}@{st.secrets['db_cluster']}.gzo0glz.mongodb.net/?retryWrites=true&writeConcern=majority"
     return pymongo.MongoClient(URI)
 
-
 # Importer les données de la collection
-@st.experimental_memo
 def extraire_documents_dataframe(_client, _base, _collection, _nolignes):
     # Sélectioner la bd
     base = _client.get_database(_base)
@@ -79,7 +84,7 @@ def extraire_documents_dataframe(_client, _base, _collection, _nolignes):
     collection = base.get_collection(_collection)
     # Extraire de la collection et filtrer les documents
     # -1 sort descending, newest to oldest
-    items = list(collection.find().sort("datetime",
+    items = list(collection.find().sort("_id",
                                         -1).limit(_nolignes))
     # Convertir en DataFrame
     dataframe = pd.DataFrame(items)
@@ -87,7 +92,6 @@ def extraire_documents_dataframe(_client, _base, _collection, _nolignes):
 
 
 # Préparer le DataFrame
-@st.experimental_memo
 def preparer_dataframe(dataframe):
     # Enlever une colonne
     dataframe.drop(['_id'], axis=1, inplace=True)
@@ -102,7 +106,6 @@ def preparer_dataframe(dataframe):
 
 
 # Filtrer le DataFrame
-@st.experimental_memo
 def filtrer_dataframe_metriques(dataframe, noeud, capteur, metrique):
     # Construire les filtres
     filtre_noeud = dataframe['noeud'] == noeud
@@ -114,7 +117,6 @@ def filtrer_dataframe_metriques(dataframe, noeud, capteur, metrique):
 
 
 # Sélectionner les 2 dernières observations
-@st.experimental_memo
 def selectionner_obs_metriques(dataframe):
     # Trier les observations
     # descending, newest to oldest ou ascending=False
@@ -137,8 +139,8 @@ def selectionner_obs_metriques(dataframe):
 # Établir la connexion à la base de données
 try:
     _un_client = etablir_connexion()
-except Exception:
-    print("Incapable de se connecter au serveur.")
+except:
+    st.error("Ne peut se connecter au serveur.")
 
 ##################################################
 # Construire la page
@@ -159,16 +161,19 @@ col1, col2, col3 = st.columns(3)
 with col1:
     # Sélectionner la bd
     st.radio("Base de données",
-             (BASE,), key='base')
+             BASE, key='base')
 with col2:
     # Sélectionner la collection
     st.radio("Collection",
-             (COLLECTION,), key='collection')
+             COLLECTION, key='collection')
+    
 with col3:
     # Sélectionner le nombre de documents
     st.radio("Documents",
-             (NOLIGNES,), key='nolignes')
+             NOLIGNES, key='nolignes')
 
+st.caption(DESCRIPTION, unsafe_allow_html=True)
+    
 with st.container():
     st.subheader("Sélectionner les noeuds à afficher")
 
@@ -220,13 +225,20 @@ with st.form(key="form", clear_on_submit=True):
 
 ##################################################
 # Importer les données de la collection
-df = extraire_documents_dataframe(_un_client,
-                                  st.session_state["base"],
-                                  st.session_state["collection"],
-                                  st.session_state["nolignes"])
+try:
+    df = extraire_documents_dataframe(_un_client,
+                                          st.session_state["base"],
+                                          st.session_state["collection"],
+                                          st.session_state["nolignes"])
+    st.write(f"Nombre d'observations: {df.shape[0]}")
+except:
+    st.error("Ne peut se connecter au serveur ou la base de données, la collection ou les données n'existent pas.")
 
 # Préparer le DataFrame
-df_ts = preparer_dataframe(df)
+try:
+    df_ts = preparer_dataframe(df)
+except:
+    st.error("La base de données, la collection ou les données n'existent pas.")
 
 ##################################################
 st.header("Affichage")
@@ -237,116 +249,242 @@ col1, col2 = st.columns(2)
 
 with col1:
     st.subheader("Température")
+    
     if st.session_state['st_noeud001']:
         # Filtrer le DataFrame
-        df_f = filtrer_dataframe_metriques(df_ts, noeud="pico01", capteur="temperature", metrique="brute")
+        try:
+            df_f = filtrer_dataframe_metriques(df_ts, noeud="pico01", capteur="temperature", metrique="brute")
+        except:
+            st.error("Ne peut filter le Noeud 001.")
         # Sélectionner les 2 dernières observations
-        st.metric("Noeud 001",
-                  f"{selectionner_obs_metriques(df_f)[0]:.1f}°C",
-                  f"{selectionner_obs_metriques(df_f,)[1]:.1f}°C")
-        st.caption(f"{selectionner_obs_metriques(df_f)[2]: %d %b %Y, %Hh%M:%S}")
+        try:
+            st.metric("Noeud 001",
+                      f"{selectionner_obs_metriques(df_f)[0]:.1f}°C",
+                      f"{selectionner_obs_metriques(df_f)[1]:.1f}°C")
+            st.caption(f"{selectionner_obs_metriques(df_f)[2]: %d %b %Y, %Hh%M:%S}")
+        except:
+            st.error("Ne peut afficher le Noeud 001.")
+    
     if st.session_state['st_noeud002']:
-        df_f = filtrer_dataframe_metriques(df_ts, "pico02", "temperature", "brute")
-        st.metric("Noeud 002",
-                  f"{selectionner_obs_metriques(df_f)[0]:.1f}°C",
-                  f"{selectionner_obs_metriques(df_f)[1]:.1f}°C")
-        st.caption(f"{selectionner_obs_metriques(df_f)[2]: %d %b %Y, %Hh%M:%S}")
+        try:
+            df_f = filtrer_dataframe_metriques(df_ts, "pico02", "temperature", "brute")
+        except:
+            st.error("Ne peut filtrer le Noeud 002.")
+        try:
+            st.metric("Noeud 002",
+                      f"{selectionner_obs_metriques(df_f)[0]:.1f}°C",
+                      f"{selectionner_obs_metriques(df_f)[1]:.1f}°C")
+            st.caption(f"{selectionner_obs_metriques(df_f)[2]: %d %b %Y, %Hh%M:%S}")
+        except:
+            st.error("Ne peut afficher le Noeud 002.")
+
     if st.session_state['st_noeud003']:
-        df_f = filtrer_dataframe_metriques(df_ts, "pico03", "temperature", "brute")
-        st.metric("Noeud 003",
-                  f"{selectionner_obs_metriques(df_f)[0]:.1f}°C",
-                  f"{selectionner_obs_metriques(df_f)[1]:.1f}°C")
-        st.caption(f"{selectionner_obs_metriques(df_f)[2]: %d %b %Y, %Hh%M:%S}")
+        try:
+            df_f = filtrer_dataframe_metriques(df_ts, "pico03", "temperature", "brute")
+        except:
+            st.error("Ne peut filtrer le Noeud 003.")
+        try:    
+            st.metric("Noeud 003",
+                      f"{selectionner_obs_metriques(df_f)[0]:.1f}°C",
+                      f"{selectionner_obs_metriques(df_f)[1]:.1f}°C")
+            st.caption(f"{selectionner_obs_metriques(df_f)[2]: %d %b %Y, %Hh%M:%S}")
+        except:
+            st.error("Ne peut afficher le Noeud 003.")
+    
     if st.session_state['st_noeud004']:
-        df_f = filtrer_dataframe_metriques(df_ts, "pico01", "temperature", "brute")
-        st.metric("Noeud 004",
-                  f"{selectionner_obs_metriques(df_f)[0]:.1f}°C",
-                  f"{selectionner_obs_metriques(df_f)[1]:.1f}°C")
-        st.caption(f"{selectionner_obs_metriques(df_f)[2]: %d %b %Y, %Hh%M:%S}")
+        try:
+            df_f = filtrer_dataframe_metriques(df_ts, "pico04", "temperature", "brute")
+        except:
+            st.error("Ne peut filtrer le Noeud 004.")
+        try:
+            st.metric("Noeud 004",
+                      f"{selectionner_obs_metriques(df_f)[0]:.1f}°C",
+                      f"{selectionner_obs_metriques(df_f)[1]:.1f}°C")
+            st.caption(f"{selectionner_obs_metriques(df_f)[2]: %d %b %Y, %Hh%M:%S}")
+        except:
+            st.error("Ne peut afficher le Noeud 004.")
+    
     if st.session_state['st_noeud005']:
-        df_f = filtrer_dataframe_metriques(df_ts, "pico02", "temperature", "brute")
-        st.metric("Noeud 005",
-                  f"{selectionner_obs_metriques(df_f)[0]:.1f}°C",
-                  f"{selectionner_obs_metriques(df_f)[1]:.1f}°C")
-        st.caption(f"{selectionner_obs_metriques(df_f)[2]: %d %b %Y, %Hh%M:%S}")
+        try:
+            df_f = filtrer_dataframe_metriques(df_ts, "pico05", "temperature", "brute")
+        except:
+            st.error("Ne peut filtrer le Noeud 005.")
+        try:
+            st.metric("Noeud 005",
+                      f"{selectionner_obs_metriques(df_f)[0]:.1f}°C",
+                      f"{selectionner_obs_metriques(df_f)[1]:.1f}°C")
+            st.caption(f"{selectionner_obs_metriques(df_f)[2]: %d %b %Y, %Hh%M:%S}")
+        except:
+            st.error("Ne peut afficher le Noeud 005.")
+    
     if st.session_state['st_noeud006']:
-        df_f = filtrer_dataframe_metriques(df_ts, "pico03", "temperature", "brute")
-        st.metric("Noeud 006",
-                  f"{selectionner_obs_metriques(df_f)[0]:.1f}°C",
-                  f"{selectionner_obs_metriques(df_f)[1]:.1f}°C")
-        st.caption(f"{selectionner_obs_metriques(df_f)[2]: %d %b %Y, %Hh%M:%S}")
+        try:
+            df_f = filtrer_dataframe_metriques(df_ts, "pico06", "temperature", "brute")
+        except:
+            st.error("Ne peut filtrer le Noeud 006.")
+        try:    
+            st.metric("Noeud 006",
+                      f"{selectionner_obs_metriques(df_f)[0]:.1f}°C",
+                      f"{selectionner_obs_metriques(df_f)[1]:.1f}°C")
+            st.caption(f"{selectionner_obs_metriques(df_f)[2]: %d %b %Y, %Hh%M:%S}")
+        except:
+            st.error("Ne peut afficher le Noeud 006.")
+    
     if st.session_state['st_noeud007']:
-        df_f = filtrer_dataframe_metriques(df_ts, "pico01", "temperature", "brute")
-        st.metric("Noeud 007",
-                  f"{selectionner_obs_metriques(df_f)[0]:.1f}°C",
-                  f"{selectionner_obs_metriques(df_f)[1]:.1f}°C")
-        st.caption(f"{selectionner_obs_metriques(df_f)[2]: %d %b %Y, %Hh%M:%S}")
+        try:
+            df_f = filtrer_dataframe_metriques(df_ts, "pico07", "temperature", "brute")
+        except:
+            st.error("Ne peut filtrer le Noeud 007.")
+        try:    
+            st.metric("Noeud 007",
+                      f"{selectionner_obs_metriques(df_f)[0]:.1f}°C",
+                      f"{selectionner_obs_metriques(df_f)[1]:.1f}°C")
+            st.caption(f"{selectionner_obs_metriques(df_f)[2]: %d %b %Y, %Hh%M:%S}")
+        except:
+            st.error("Ne peut afficher le Noeud 007.")
+    
     if st.session_state['st_noeud008']:
-        df_f = filtrer_dataframe_metriques(df_ts, "pico02", "temperature", "brute")
-        st.metric("Noeud 008",
-                  f"{selectionner_obs_metriques(df_f)[0]:.1f}°C",
-                  f"{selectionner_obs_metriques(df_f)[1]:.1f}°C")
-        st.caption(f"{selectionner_obs_metriques(df_f)[2]: %d %b %Y, %Hh%M:%S}")
+        try:
+            df_f = filtrer_dataframe_metriques(df_ts, "pico08", "temperature", "brute")
+        except:
+            st.error("Ne peut filtrer le Noeud 008.")
+        try:    
+            st.metric("Noeud 008",
+                      f"{selectionner_obs_metriques(df_f)[0]:.1f}°C",
+                      f"{selectionner_obs_metriques(df_f)[1]:.1f}°C")
+            st.caption(f"{selectionner_obs_metriques(df_f)[2]: %d %b %Y, %Hh%M:%S}")
+        except:
+            st.error("Ne peut afficher le Noeud 008.")
+    
     if st.session_state['st_noeud009']:
-        df_f = filtrer_dataframe_metriques(df_ts, "pico03", "temperature", "brute")
-        st.metric("Noeud 001",
-                  f"{selectionner_obs_metriques(df_f)[0]:.1f}°C",
-                  f"{selectionner_obs_metriques(df_f)[1]:.1f}°C")
-        st.caption(f"{selectionner_obs_metriques(df_f)[2]: %d %b %Y, %Hh%M:%S}")
+        try:
+            df_f = filtrer_dataframe_metriques(df_ts, "pico09", "temperature", "brute")
+        except:
+            st.error("Ne peut filtrer le Noeud 009.")
+        try:    
+            st.metric("Noeud 009",
+                      f"{selectionner_obs_metriques(df_f)[0]:.1f}°C",
+                      f"{selectionner_obs_metriques(df_f)[1]:.1f}°C")
+            st.caption(f"{selectionner_obs_metriques(df_f)[2]: %d %b %Y, %Hh%M:%S}")
+        except:
+            st.error("Ne peut afficher le Noeud 009.")
 
 with col2:
-    st.subheader("humidite")
+    st.subheader("Humidité")
+    
     if st.session_state['st_noeud001']:
-        df_f = filtrer_dataframe_metriques(df_ts, "pico01", "humidite", "brute")
-        st.metric("Noeud 001",
-                  f"{selectionner_obs_metriques(df_f)[0]:.1f}%",
-                  f"{selectionner_obs_metriques(df_f)[1]:.1f}%")
-        st.caption(f"{selectionner_obs_metriques(df_f)[2]: %d %b %Y, %Hh%M:%S}")
+        try:
+            df_f = filtrer_dataframe_metriques(df_ts, "pico01", "humidite", "brute")
+        except:
+            st.error("Ne peut filtrer le Noeud 001.")
+        try:
+            st.metric("Noeud 001",
+                      f"{selectionner_obs_metriques(df_f)[0]:.1f}%",
+                      f"{selectionner_obs_metriques(df_f)[1]:.1f}%")
+            st.caption(f"{selectionner_obs_metriques(df_f)[2]: %d %b %Y, %Hh%M:%S}")
+        except:
+            st.error("Ne peut afficher le Noeud 001.")
+
     if st.session_state['st_noeud002']:
-        df_f = filtrer_dataframe_metriques(df_ts, "pico02", "humidite", "brute")
-        st.metric("Noeud 001",
-                  f"{selectionner_obs_metriques(df_f)[0]:.1f}%",
-                  f"{selectionner_obs_metriques(df_f)[1]:.1f}%")
-        st.caption(f"{selectionner_obs_metriques(df_f)[2]: %d %b %Y, %Hh%M:%S}")
+        try:
+            df_f = filtrer_dataframe_metriques(df_ts, "pico02", "humidite", "brute")
+        except:
+            st.error("Ne peut filtrer le Noeud 002.")
+        try:
+            st.metric("Noeud 002",
+                      f"{selectionner_obs_metriques(df_f)[0]:.1f}%",
+                      f"{selectionner_obs_metriques(df_f)[1]:.1f}%")
+            st.caption(f"{selectionner_obs_metriques(df_f)[2]: %d %b %Y, %Hh%M:%S}")
+        except:
+            st.error("Ne peut afficher le Noeud 002.")
+    
     if st.session_state['st_noeud003']:
-        df_f = filtrer_dataframe_metriques(df_ts, "pico03", "humidite", "brute")
-        st.metric("Noeud 001",
-                  f"{selectionner_obs_metriques(df_f)[0]:.1f}%",
-                  f"{selectionner_obs_metriques(df_f)[1]:.1f}%")
-        st.caption(f"{selectionner_obs_metriques(df_f)[2]: %d %b %Y, %Hh%M:%S}")
+        try:
+            df_f = filtrer_dataframe_metriques(df_ts, "pico03", "humidite", "brute")
+        except:
+            st.error("Ne peut filtrer le Noeud 003.")
+        try:
+            st.metric("Noeud 003",
+                      f"{selectionner_obs_metriques(df_f)[0]:.1f}%",
+                      f"{selectionner_obs_metriques(df_f)[1]:.1f}%")
+            st.caption(f"{selectionner_obs_metriques(df_f)[2]: %d %b %Y, %Hh%M:%S}")
+        except:
+            st.error("Ne peut afficher le Noeud 003.")
+    
     if st.session_state['st_noeud004']:
-        df_f = filtrer_dataframe_metriques(df_ts, "pico01", "humidite", "brute")
-        st.metric("Noeud 001",
-                  f"{selectionner_obs_metriques(df_f)[0]:.1f}%",
-                  f"{selectionner_obs_metriques(df_f)[1]:.1f}%")
-        st.caption(f"{selectionner_obs_metriques(df_f)[2]: %d %b %Y, %Hh%M:%S}")
+        try:
+            df_f = filtrer_dataframe_metriques(df_ts, "pico04", "humidite", "brute")
+        except:
+            st.error("Ne peut filtrer le Noeud 004.")
+        try:
+            st.metric("Noeud 004",
+                      f"{selectionner_obs_metriques(df_f)[0]:.1f}%",
+                      f"{selectionner_obs_metriques(df_f)[1]:.1f}%")
+            st.caption(f"{selectionner_obs_metriques(df_f)[2]: %d %b %Y, %Hh%M:%S}")
+        except:
+            st.error("Ne peut afficher le Noeud 004.")
+    
     if st.session_state['st_noeud005']:
-        df_f = filtrer_dataframe_metriques(df_ts, "pico02", "humidite", "brute")
-        st.metric("Noeud 001",
-                  f"{selectionner_obs_metriques(df_f)[0]:.1f}%",
-                  f"{selectionner_obs_metriques(df_f)[1]:.1f}%")
-        st.caption(f"{selectionner_obs_metriques(df_f)[2]: %d %b %Y, %Hh%M:%S}")
+        try:
+            df_f = filtrer_dataframe_metriques(df_ts, "pico05", "humidite", "brute")
+        except:
+            st.error("Ne peut filtrer le Noeud 005.")
+        try:
+            st.metric("Noeud 005",
+                      f"{selectionner_obs_metriques(df_f)[0]:.1f}%",
+                      f"{selectionner_obs_metriques(df_f)[1]:.1f}%")
+            st.caption(f"{selectionner_obs_metriques(df_f)[2]: %d %b %Y, %Hh%M:%S}")
+        except:
+            st.error("Ne peut afficher le Noeud 005.")
+    
     if st.session_state['st_noeud006']:
-        df_f = filtrer_dataframe_metriques(df_ts, "pico03", "humidite", "brute")
-        st.metric("Noeud 001",
-                  f"{selectionner_obs_metriques(df_f)[0]:.1f}%",
-                  f"{selectionner_obs_metriques(df_f)[1]:.1f}%")
-        st.caption(f"{selectionner_obs_metriques(df_f)[2]: %d %b %Y, %Hh%M:%S}")
+        try:
+            df_f = filtrer_dataframe_metriques(df_ts, "pico06", "humidite", "brute")
+        except:
+            st.error("Ne peut filtrer le Noeud 006.")
+        try:
+            st.metric("Noeud 006",
+                      f"{selectionner_obs_metriques(df_f)[0]:.1f}%",
+                      f"{selectionner_obs_metriques(df_f)[1]:.1f}%")
+            st.caption(f"{selectionner_obs_metriques(df_f)[2]: %d %b %Y, %Hh%M:%S}")
+        except:
+            st.error("Ne peut afficher le Noeud 006.")
+    
     if st.session_state['st_noeud007']:
-        df_f = filtrer_dataframe_metriques(df_ts, "pico01", "humidite", "brute")
-        st.metric("Noeud 001",
-                  f"{selectionner_obs_metriques(df_f)[0]:.1f}%",
-                  f"{selectionner_obs_metriques(df_f)[1]:.1f}%")
-        st.caption(f"{selectionner_obs_metriques(df_f)[2]: %d %b %Y, %Hh%M:%S}")
+        try:
+            df_f = filtrer_dataframe_metriques(df_ts, "pico07", "humidite", "brute")
+        except:
+            st.error("Ne peut filtrer le Noeud 007.")
+        try:
+            st.metric("Noeud 007",
+                      f"{selectionner_obs_metriques(df_f)[0]:.1f}%",
+                      f"{selectionner_obs_metriques(df_f)[1]:.1f}%")
+            st.caption(f"{selectionner_obs_metriques(df_f)[2]: %d %b %Y, %Hh%M:%S}")
+        except:
+            st.error("Ne peut afficher le Noeud 007.")
+    
     if st.session_state['st_noeud008']:
-        df_f = filtrer_dataframe_metriques(df_ts, "pico02", "humidite", "brute")
-        st.metric("Noeud 001",
-                  f"{selectionner_obs_metriques(df_f)[0]:.1f}%",
-                  f"{selectionner_obs_metriques(df_f)[1]:.1f}%")
-        st.caption(f"{selectionner_obs_metriques(df_f)[2]: %d %b %Y, %Hh%M:%S}")
+        try:
+            df_f = filtrer_dataframe_metriques(df_ts, "pico08", "humidite", "brute")
+        except:
+            st.error("Ne peut filtrer le Noeud 008.")
+        try:
+            st.metric("Noeud 008",
+                      f"{selectionner_obs_metriques(df_f)[0]:.1f}%",
+                      f"{selectionner_obs_metriques(df_f)[1]:.1f}%")
+            st.caption(f"{selectionner_obs_metriques(df_f)[2]: %d %b %Y, %Hh%M:%S}")
+        except:
+            st.error("Ne peut afficher le Noeud 008.")
+    
     if st.session_state['st_noeud009']:
-        df_f = filtrer_dataframe_metriques(df_ts, "pico03", "humidite", "brute")
-        st.metric("Noeud 001",
-                  f"{selectionner_obs_metriques(df_f)[0]:.1f}%",
-                  f"{selectionner_obs_metriques(df_f)[1]:.1f}%")
-        st.caption(f"{selectionner_obs_metriques(df_f)[2]: %d %b %Y, %Hh%M:%S}")
+        try:
+            df_f = filtrer_dataframe_metriques(df_ts, "pico09", "humidite", "brute")
+        except:
+            st.error("Ne peut filtrer le Noeud 009.")
+        try:
+            st.metric("Noeud 009",
+                      f"{selectionner_obs_metriques(df_f)[0]:.1f}%",
+                      f"{selectionner_obs_metriques(df_f)[1]:.1f}%")
+            st.caption(f"{selectionner_obs_metriques(df_f)[2]: %d %b %Y, %Hh%M:%S}")
+        except:
+            st.error("Ne peut afficher le Noeud 009.")

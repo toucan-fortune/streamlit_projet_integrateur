@@ -9,8 +9,7 @@ import time
 # Dans le requirements.txt,
 # ne pas installer de modules standards à Python
 
-# Exécuter localement
-# streamlit run index.py
+
 
 ##################################################
 # Configurer la page
@@ -56,15 +55,22 @@ ajouter_image_sidebar("img/android-chrome-512x512b.png")
 
 ##################################################
 # Déterminer les constantes
-BASE = 'toucan'
-COLLECTION = 'format4b'
-NOLIGNES = 288
-#COMPTE_NOEUD = 9
-WARNING = "Seul le noeud 001 est actif."
+BASE = ('toucan',)
+#!!!
+COLLECTION = ('format10', 'format11', 'format12', 'format13')
+DESCRIPTION = """
+**format10**: rien - 
+**format11**: simulation de pico01 au 15min - 
+**format12**: simulation de pico01 à pico09 au 60min - 
+**format13**: capteur pico01
+"""
+NOLIGNES = (50, 100, 200, 400, 800, 1600)
+COMPTE_NOEUD = 9
+WARNING = "Seuls certains noeuds peuvent être actifs."
 
 ##################################################
 # Établir la connexion à la base de données
-@st.experimental_singleton
+@st.cache_resource(ttl=3600)
 def etablir_connexion():
     # Chercher les données dans le fichier secrets.toml
     URI = f"mongodb+srv://{st.secrets['db_username']}:{st.secrets['db_pw']}@{st.secrets['db_cluster']}.gzo0glz.mongodb.net/?retryWrites=true&writeConcern=majority"
@@ -72,7 +78,6 @@ def etablir_connexion():
 
 
 # Importer les données de la collection
-@st.experimental_memo
 def extraire_documents_dataframe(_client, _base, _collection, _nolignes):
     # Sélectioner la BASE DE DONNÉES
     base = _client.get_database(_base)
@@ -88,7 +93,6 @@ def extraire_documents_dataframe(_client, _base, _collection, _nolignes):
 
 
 # Préparer le DataFrame
-@st.experimental_memo
 def preparer_dataframe(dataframe):
     # Enlever une colonne
     dataframe.drop(['_id'], axis=1, inplace=True)
@@ -103,7 +107,6 @@ def preparer_dataframe(dataframe):
 
 
 # Filtrer le DataFrame
-@st.experimental_memo
 def filtrer_dataframe_metriques(dataframe, noeud, capteur, metrique):
     # Construire les filtres
     filtre_noeud = dataframe['noeud'] == noeud
@@ -115,7 +118,6 @@ def filtrer_dataframe_metriques(dataframe, noeud, capteur, metrique):
 
 
 # Filtrer le DataFrame
-@st.experimental_memo
 def filtrer_dataframe_series(dataframe, capteur, metrique):
     # Construire les filtres
     filtre_capteur = dataframe['capteur'] == capteur
@@ -126,7 +128,6 @@ def filtrer_dataframe_series(dataframe, capteur, metrique):
 
 
 # Sélectionner les 2 dernières observations
-@st.experimental_memo
 def selectionner_obs_metriques(dataframe):
     # Trier les observations
     # descending, newest to oldest ou ascending=False
@@ -146,7 +147,6 @@ def selectionner_obs_metriques(dataframe):
 
 
 # Sélectionner les observations
-@st.experimental_memo
 def selectionner_obser_series(dataframe, nombre):
     # Trier les observations
     # descending, newest to oldest ou ascending=False
@@ -166,10 +166,8 @@ def selectionner_obser_series(dataframe, nombre):
 # Établir la connexion à la base de données
 try:
     _un_client = etablir_connexion()
-    # Marquer un temps de référence
-    maintenant = datetime.datetime.now()
 except Exception:
-    print("Incapable de se connecter au serveur.")
+    st.error("Ne peut se connecter au serveur.")
 
 ##################################################
 # Construire la page
@@ -190,15 +188,17 @@ col1, col2, col3 = st.columns(3)
 with col1:
     # Sélectionner la bd
     st.radio("Base de données",
-             (BASE,), key='base')
+             BASE, key='base')
 with col2:
     # Sélectionner la collection
     st.radio("Collection",
-             (COLLECTION,), key='collection')
+             COLLECTION, key='collection')
 with col3:
     # Sélectionner le nombre de documents
     st.radio("Documents",
-             (NOLIGNES,), key='nolignes')
+             NOLIGNES, key='nolignes')
+
+st.caption(DESCRIPTION, unsafe_allow_html=True)
 
 # Construire un contenant
 with st.container():
@@ -232,6 +232,7 @@ delta_temps_caption = st.empty()
 st.header("Affichage")
 
 st.warning(WARNING)
+st.warning("Si aucune données n'apparait, il peut y avoir une mauvaise connexion au serveur ou la base de données, la collection ou les données n'existent pas.")
 
 col1, col2 = st.columns(2)
 
@@ -249,9 +250,12 @@ with col2:
     p_metric_h001 = st.empty()
     p_caption_h001 = st.empty()
 
-st.subheader("Graphiques: température")
+st.subheader("Température")
 
 p_chart_a = st.empty()
+
+st.subheader("Humidité")
+
 p_chart_b = st.empty()
 
 ##################################################
@@ -261,8 +265,8 @@ p_checkbox.checkbox('Noeud 001', key='st_noeud001', value=True)
 p_periode_info.info(f"De 5 à {st.session_state['nolignes']} périodes chronologiques.")
 p_periode_slider.slider("Sélectionner", 5, st.session_state["nolignes"], 10, 5, key='periode')
 
-p_delai_info.info("Intervalles de 3s à 60s entre chaque extraction de la base de données.")
-p_delai_slider.slider("Sélectionner", 5, 60, 10, 5, key='delai')
+p_delai_info.info("Intervalles de temps entre chaque extraction de la base de données.")
+p_delai_slider.slider("Sélectionner", 1, 60, 3, 1, key='delai')
 
 ##################################################
 # Si objet est True (présent)
@@ -282,68 +286,101 @@ if p_activer_button.button('Activer', key='start'):
 
     # Boucle infinie
     while True:
-        # Calculer le delta entre
-        # le temps présent et
-        # le temps de référence établi plus haut
-        delta_temps = datetime.datetime.now() - maintenant
-        # Si le delta est un multiple
-        # égal au délai choisi...
-        if delta_temps.seconds % st.session_state['delai'] == 0:
-            # do...
-            delta_temps_caption.write(f"Multiple de l'intervalle: {delta_temps.seconds}")
-            ##################################################
-            # Importer les données de la collection
+        # Importer les données de la collection
+        try:
             df = extraire_documents_dataframe(_un_client,
                                               st.session_state["base"],
                                               st.session_state["collection"],
                                               st.session_state["nolignes"])
-            # Préparer le DataFrame
+        except:
+            pass#st.error("Ne peut se connecter au serveur ou la base de données, la collection ou les données n'existent pas.")
+            
+        # Préparer le DataFrame
+        try:
             df_ts = preparer_dataframe(df)
-            # Filtrer le DataFrame
+        except:
+            pass#st.error("La base de données, la collection ou les données n'existent pas.")
+        
+        # Filtrer le DataFrame
+        try:
             df_f = filtrer_dataframe_metriques(df_ts, "pico01", "temperature", "brute")
-            # Activer les placeholders
+        except:
+            pass#st.error("Ne peut filtrer le Noeud 001.")
+        
+        # Activer les placeholders
+        try:
             p_metric_t001.metric("Noeud 001",
-                                f"{selectionner_obs_metriques(df_f)[0]:.1f}°C",
-                                f"{selectionner_obs_metriques(df_f,)[1]:.1f}°C")
+                                 f"{selectionner_obs_metriques(df_f)[0]:.1f}°C",
+                                 f"{selectionner_obs_metriques(df_f)[1]:.1f}°C")
             p_caption_t001.caption(f"{selectionner_obs_metriques(df_f)[2]: %d %b %Y, %Hh%M:%S}")
-            # Filtrer le DataFrame
+        except:
+            pass#st.error("Ne peut afficher le Noeud 001.")
+        
+        # Filtrer le DataFrame
+        try:
             df_f = filtrer_dataframe_metriques(df_ts, "pico01", "humidite", "brute")
-            # Activer les placeholders
+        except:
+            pass#st.error("Ne peut filtrer le Noeud 001.")
+            
+        # Activer les placeholders
+        try:
             p_metric_h001.metric("Noeud 001",
-                                 f"{selectionner_obs_metriques(df_f)[0]:.1f}%",
-                                 f"{selectionner_obs_metriques(df_f,)[1]:.1f}%")
+                                  f"{selectionner_obs_metriques(df_f)[0]:.1f}%",
+                                  f"{selectionner_obs_metriques(df_f)[1]:.1f}%")
             p_caption_h001.caption(f"{selectionner_obs_metriques(df_f)[2]: %d %b %Y, %Hh%M:%S}")
-            # Filtrer pour les prochaines graphiques
-            # Refiltrer les noeuds
-            liste_noeud = ['pico01']
+        except:
+            pass#st.error("Ne peut afficher le Noeud 001.")
+        
+        # Filtrer pour les prochaines graphiques
+        # Refiltrer les noeuds
+        liste_noeud = ['pico01', 'pico02', 'pico03',
+                       'pico04', 'pico05', 'pico06',
+                       'pico07', 'pico08', 'pico09']
+        try:
             df_f = filtrer_dataframe_series(df_ts, "temperature", "brute").loc[df_ts['noeud'].isin(liste_noeud)]
-            # Tracer la ligne
-            fig = px.line(selectionner_obser_series(df_f,
-                                                    st.session_state['periode']),
-                          x="datetime",
-                          y="valeur",
-                          color='noeud',
-                          labels={
-                                 "datetime": "",
-                                 "valeur": "°C",
-                                 "noeud": "Noeud"
-                              },
-                          title='Brute')
-            # Activer les placeholders
-            p_chart_a.plotly_chart(fig)
-            # Tracer les barres
-            fig = px.bar(selectionner_obser_series(df_f,
-                                                   st.session_state['periode']),
-                         x="datetime",
-                         y="valeur_delta",
-                         color='noeud',
-                         labels={
-                                 "datetime": "",
-                                 "valeur_delta": "différence en °C",
-                                 "noeud": "Noeud"
-                             },
-                         title='Brute, changement, période à période')
-            p_chart_b.plotly_chart(fig)
-            ##################################################
+        except:
+            df_f = pd.DataFrame({'datetime': [0],
+                                 'noeud': [0],
+                                 'capteur': [0],
+                                 'metrique': [0],
+                                 'valeur': [0]})
+            pass#st.error("Ne peut filtrer le Noeud 001.")
+        
+        # Tracer la ligne
+        fig = px.line(selectionner_obser_series(df_f,
+                                                st.session_state['periode']),
+                      x="datetime",
+                      y="valeur",
+                      color='noeud',
+                      labels={
+                             "datetime": "",
+                             "valeur": "°C",
+                             "noeud": "Noeud"
+                          },
+                      title='Brute')
+        # Activer les placeholders
+        p_chart_a.plotly_chart(fig)
+        
+        # Filtrer pour les prochaines graphiques
+        try:
+            df_f = filtrer_dataframe_series(df_ts, "humidite", "brute").loc[df_ts['noeud'].isin(liste_noeud)]
+        except:
+            pass#st.error("Ne peut filtrer le Noeud 001.")
+            
+        # Tracer la ligne
+        fig = px.line(selectionner_obser_series(df_f,
+                                                st.session_state['periode']),
+                      x="datetime",
+                      y="valeur",
+                      color='noeud',
+                      labels={
+                             "datetime": "",
+                             "valeur": "%",
+                             "noeud": "Noeud"
+                          },
+                      title='Brute')
+        # Activer les placeholders
+        p_chart_b.plotly_chart(fig)
+        
         # Délai entre intérations
-        time.sleep(2.5)
+        time.sleep(st.session_state["delai"])

@@ -8,8 +8,6 @@ import plotly.express as px
 # Dans le requirements.txt,
 # ne pas installer de modules standards à Python
 
-# Exécuter localement
-# streamlit run index.py
 
 ##################################################
 # Configurer la page
@@ -56,15 +54,24 @@ ajouter_image_sidebar("img/android-chrome-512x512b.png")
 
 ##################################################
 # Déterminer les constantes
-BASE = 'toucan'
-COLLECTION = 'format4b'
-NOLIGNES = 2592
+BASE = ('toucan',)
+# !!!
+COLLECTION = ('format10', 'format11', 'format12', 'format13')
+DESCRIPTION = """
+**format10**: rien - 
+**format11**: simulation de pico01 au 15min - 
+**format12**: simulation de pico01 à pico09 au 60min - 
+**format13**: capteur pico01
+"""
+NOLIGNES = (50, 100, 200, 400, 800, 1600)
 COMPTE_NOEUD = 9
-WARNING = "Seul les noeuds 001 à 003 sont actifs."
+#WARNING = "Seul le noeud 001 est actif. Les autres noeuds sont calquées sur le noeud actif."
+#WARNING = "Seul les noeuds 001 à 003 sont actifs."
+WARNING = "Seuls certains noeuds peuvent être actifs."
 
 ##################################################
 # Établir la connexion à la base de données
-@st.experimental_singleton
+@st.cache_resource(ttl=3600)
 def etablir_connexion():
     # Chercher les données dans le fichier secrets.toml
     URI = f"mongodb+srv://{st.secrets['db_username']}:{st.secrets['db_pw']}@{st.secrets['db_cluster']}.gzo0glz.mongodb.net/?retryWrites=true&writeConcern=majority"
@@ -72,7 +79,6 @@ def etablir_connexion():
 
 
 # Importer les données de la collection
-@st.experimental_memo
 def extraire_documents_dataframe(_client, _base, _collection, _nolignes):
     # Sélectioner la bd
     base = _client.get_database(_base)
@@ -80,7 +86,7 @@ def extraire_documents_dataframe(_client, _base, _collection, _nolignes):
     collection = base.get_collection(_collection)
     # Extraire de la collection et filtrer les documents
     # -1 sort descending, newest to oldest
-    items = list(collection.find().sort("datetime",
+    items = list(collection.find().sort("_id",
                                         -1).limit(_nolignes))
     # Convertir en DataFrame
     dataframe = pd.DataFrame(items)
@@ -88,7 +94,6 @@ def extraire_documents_dataframe(_client, _base, _collection, _nolignes):
 
 
 # Préparer le DataFrame
-@st.experimental_memo
 def preparer_dataframe(dataframe):
     # Enlever une colonne
     dataframe.drop(['_id'], axis=1, inplace=True)
@@ -103,7 +108,6 @@ def preparer_dataframe(dataframe):
 
 
 # Filtrer le DataFrame
-@st.experimental_memo
 def filtrer_dataframe_series(dataframe, capteur, metrique):
     # Construire les filtres
     filtre_capteur = dataframe['capteur'] == capteur
@@ -114,7 +118,6 @@ def filtrer_dataframe_series(dataframe, capteur, metrique):
 
 
 # Sélectionner les observations
-@st.experimental_memo
 def selectionner_obser_series(dataframe, nombre):
     # Trier les observations
     # descending, newest to oldest ou ascending=False
@@ -135,7 +138,7 @@ def selectionner_obser_series(dataframe, nombre):
 try:
     _un_client = etablir_connexion()
 except Exception:
-    print("Incapable de se connecter au serveur.")
+    print("Ne peut se connecter au serveur.")
 
 ##################################################
 # Construire la page
@@ -154,15 +157,17 @@ col1, col2, col3 = st.columns(3)
 with col1:
     # Sélectionner la bd
     st.radio("Base de données",
-             (BASE,), key='base')
+             BASE, key='base')
 with col2:
     # Sélectionner la collection
     st.radio("Collection",
-             (COLLECTION,), key='collection')
+             COLLECTION, key='collection')
 with col3:
     # Sélectionner le nombre de documents
     st.radio("Documents",
-             (NOLIGNES,), key='nolignes')
+             NOLIGNES, key='nolignes')
+
+st.caption(DESCRIPTION, unsafe_allow_html=True)
 
 with st.container():
     st.subheader("Sélectionner les noeuds à afficher")
@@ -221,30 +226,38 @@ st.slider("Sélectionner", 5, st.session_state["nolignes"], 10, 5, key='periode'
 
 ##################################################
 # Importer les données de la collection
-df = extraire_documents_dataframe(_un_client,
-                                  st.session_state["base"],
-                                  st.session_state["collection"],
-                                  st.session_state["nolignes"])
+try:
+    df = extraire_documents_dataframe(_un_client,
+                                      st.session_state["base"],
+                                      st.session_state["collection"],
+                                      st.session_state["nolignes"])
+    st.write(f"Nombre d'observations: {df.shape[0]}")
+except:
+    st.error("Ne peut se connecter au serveur ou la base de données, la collection ou les données n'existent pas.")
 
 # Préparer le DataFrame
 # Trier par noeud, puis datetime
-df_ts = preparer_dataframe(df).sort_values(by=["noeud", "datetime"])
+try:
+    #df_ts = preparer_dataframe(df).sort_values(by=["datetime"], ascending=False)
+    df_ts = preparer_dataframe(df).sort_values(by=["noeud", "datetime"], ascending=False)
+except:
+    st.error("La base de données, la collection ou les données n'existent pas.")
 
 ##################################################
 st.header("Affichage")
 
 st.warning(WARNING)
 
-st.subheader("Tableau interactif de 10 observations")
-st.caption("Le DataFrame est trié en ordre ascendant; la dernière rangée montre l'observation la plus récente.")
+st.subheader("Tableau interactif des observations")
+st.caption("Le DataFrame est trié; la première rangée montre l'observation la plus récente.")
 
 # Afficher un tableau interactif
-st.dataframe(df_ts.head(10))
+try:
+    st.dataframe(df_ts)
+except:
+    st.error("La base de données, la collection ou les données n'existent pas.")
 
-# Vérifier le nombre d'observations
-st.write(f"Nombre total d'observations: {df_ts.shape[0]}")
-
-st.subheader("Graphiques: température")
+st.subheader("Température")
 
 # Filtrer pour les prochaines graphiques
 liste_noeud = []
@@ -254,11 +267,31 @@ if st.session_state['st_noeud002']:
     liste_noeud.append('pico02')
 if st.session_state['st_noeud003']:
     liste_noeud.append('pico03')
-# ...
+if st.session_state['st_noeud004']:
+    liste_noeud.append('pico04')
+if st.session_state['st_noeud005']:
+    liste_noeud.append('pico05')
+if st.session_state['st_noeud006']:
+    liste_noeud.append('pico06')
+if st.session_state['st_noeud007']:
+    liste_noeud.append('pico07')
+if st.session_state['st_noeud008']:
+    liste_noeud.append('pico08')
+if st.session_state['st_noeud009']:
+    liste_noeud.append('pico09')
 
 # Filtrer pour les prochaines graphiques
 # Refiltrer les noeuds
-df_f = filtrer_dataframe_series(df_ts, "temperature", "brute").loc[df_ts['noeud'].isin(liste_noeud)]
+try:
+    df_f = filtrer_dataframe_series(df_ts, "temperature",
+                                    "brute").loc[df_ts['noeud'].isin(liste_noeud)]
+except:
+    df_f = pd.DataFrame({'datetime': [0],
+                         'noeud': [0],
+                         'capteur': [0],
+                         'metrique': [0],
+                         'valeur': [0]})
+    st.error("La base de données, la collection ou les données n'existent pas.")
 
 # Tracer la ligne
 fig = px.line(selectionner_obser_series(df_f,
@@ -333,11 +366,15 @@ fig = px.violin(selectionner_obser_series(df_f,
              title='Distribution par noeud, brute')
 st.plotly_chart(fig)
 
-st.subheader("Graphiques: humidité")
+st.subheader("Humidité")
 
 # Filtrer pour les prochaines graphiques
 # Refiltrer les noeuds
-df_f = filtrer_dataframe_series(df_ts, "humidite", "brute").loc[df_ts['noeud'].isin(liste_noeud)]
+try:
+    df_f = filtrer_dataframe_series(df_ts, "humidite",
+                                    "brute").loc[df_ts['noeud'].isin(liste_noeud)]
+except:
+    st.error("La base de données, la collection ou les données n'existent pas.")
 
 # Tracer la ligne
 fig = px.line(selectionner_obser_series(df_f,
@@ -371,7 +408,11 @@ st.plotly_chart(fig)
 
 # Filtrer pour les prochaines graphiques
 # Refiltrer les noeuds
-df_f = filtrer_dataframe_series(df_ts, "humidite", "brute").loc[df_ts['noeud'].isin(liste_noeud)]
+try:
+    df_f = filtrer_dataframe_series(df_ts, "humidite",
+                                    "brute").loc[df_ts['noeud'].isin(liste_noeud)]
+except:
+    st.error("La base de données, la collection ou les données n'existent pas.")
 
 # Tracer les violons
 fig = px.violin(selectionner_obser_series(df_f,
