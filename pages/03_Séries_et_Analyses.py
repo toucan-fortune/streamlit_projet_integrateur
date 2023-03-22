@@ -406,14 +406,6 @@ fig = px.bar(selectionner_obser_series(df_f,
              title='Brute, changement, période à période')
 st.plotly_chart(fig)
 
-# Filtrer pour les prochaines graphiques
-# Refiltrer les noeuds
-try:
-    df_f = filtrer_dataframe_series(df_ts, "humidite",
-                                    "brute").loc[df_ts['noeud'].isin(liste_noeud)]
-except:
-    st.error("La base de données, la collection ou les données n'existent pas.")
-
 # Tracer les violons
 fig = px.violin(selectionner_obser_series(df_f,
                                           st.session_state['periode']),
