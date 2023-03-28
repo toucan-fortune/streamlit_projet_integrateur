@@ -3,6 +3,7 @@ import base64
 import pymongo
 import pandas as pd
 
+
 # Dans le requirements.txt,
 # ne pas installer de modules standards à Python
 

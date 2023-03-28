@@ -13,7 +13,7 @@ import base64
 # auto or expanded
 st.set_page_config(page_title="Projet intégrateur",
                    page_icon="img/favicon.ico",
-                   layout="centered",
+                   layout="wide",
                    initial_sidebar_state="auto",
                    menu_items={
                        "About": "Projet intégrateur de l'équipe Toucan Fortuné."}

@@ -4,9 +4,9 @@ import pymongo
 import pandas as pd
 import plotly.express as px
 
-
 # Dans le requirements.txt,
 # ne pas installer de modules standards à Python
+
 
 
 ##################################################
