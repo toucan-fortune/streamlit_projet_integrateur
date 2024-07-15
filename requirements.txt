@@ -1,4 +1,4 @@
-pandas==1.4.4
-plotly==5.9.0
-pymongo==4.3.3
-streamlit==1.18.0
+pandas==2.2.2
+plotly==5.22.0
+pymongo==4.8.0
+streamlit-nightly==1.36.1.dev20240714
